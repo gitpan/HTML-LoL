@@ -22,8 +22,7 @@ foreach my $test (@tests) {
   my @test = @$test;
   my $expected = shift @test;
   my $result;
-  &hl(sub { $result .= shift }, @test);
-  ++$fail unless &ok($result, $expected);
+  ++$fail unless &ok(&hl(sub { $result .= shift }, @test), $expected);
 }
 
 die "$fail of $num tests failed\n" if $fail;

@@ -1,24 +1,54 @@
+package HTML::LoL::Special;
+
+sub new {
+  my($type, $str) = @_;
+  bless \$str, $type;
+}
+
 package HTML::LoL;
 
 use strict;
 use base 'Exporter';
 use vars qw(@ISA @EXPORT $VERSION);
 
-$VERSION = '1.1';
+$VERSION = '1.3';
 @EXPORT = qw(hl hl_noquote hl_requote hl_entity hl_bool hl_preserve);
 
 use constant TABWIDTH => 8;
 
-use Symbol;
-
-my $hl_bool_yes = &gensym();
-my $hl_bool_no  = &gensym();
-my $hl_noquote  = &gensym();
-my $hl_requote  = &gensym();
-my $hl_preserve = &gensym();
-
 use HTML::Entities;
 use HTML::Tagset;
+
+my $hl_bool_yes = new HTML::LoL::Special('bool_yes');
+my $hl_bool_no  = new HTML::LoL::Special('bool_no');
+my $hl_noquote  = new HTML::LoL::Special('noquote');
+my $hl_requote  = new HTML::LoL::Special('requote');
+my $hl_preserve = new HTML::LoL::Special('preserve');
+
+sub is_bool_yes {
+  my $x = shift;
+  return UNIVERSAL::isa($x, 'HTML::LoL::Special') && ($$x eq 'bool_yes');
+}
+
+sub is_bool_no {
+  my $x = shift;
+  return UNIVERSAL::isa($x, 'HTML::LoL::Special') && ($$x eq 'bool_no');
+}
+
+sub is_noquote {
+  my $x = shift;
+  return UNIVERSAL::isa($x, 'HTML::LoL::Special') && ($$x eq 'noquote');
+}
+
+sub is_requote {
+  my $x = shift;
+  return UNIVERSAL::isa($x, 'HTML::LoL::Special') && ($$x eq 'requote');
+}
+
+sub is_preserve {
+  my $x = shift;
+  return UNIVERSAL::isa($x, 'HTML::LoL::Special') && ($$x eq 'preserve');
+}
 
 # elements inside which it is OK to add whitespace
 my %hl_wsok;
@@ -31,7 +61,7 @@ map { $hl_pre{$_} = 1 } qw(pre style script textarea);
 
 sub _emit {
   my($cb, $str, $columnref) = @_;
-  &$cb($str);
+  my $result = &$cb($str);
 
   if ($str =~ /.*\n([^\n]*)$/s) {
     $str = $1;
@@ -47,14 +77,18 @@ sub _emit {
     ++$$columnref;
     $$columnref *= TABWIDTH;
   }
+
+  return $result;
 }
 
 sub _str {
   my($cb, $str, $depth, $columnref, $wsokref, $pre, $noquote) = @_;
 
+  my $result;
+
   $str = &encode_entities($str) unless $noquote;
   if ($pre) {
-    &_emit($cb, $str, $columnref);
+    $result = &_emit($cb, $str, $columnref);
   } else {
     my $leading_ws = ($str =~ /^\s/s);
     my $trailing_ws = ($str =~ /\s$/s);
@@ -71,39 +105,43 @@ sub _str {
         if ($$wsokref) {
           if (($$columnref > 0)
               && ((1 + length($word) + $$columnref) > 72)) {
-            &_emit($cb, ("\n" . (' ' x ($depth + 1))), $columnref);
+            $result = &_emit($cb, ("\n" . (' ' x ($depth + 1))), $columnref);
           } else {
-            &_emit($cb, ' ', $columnref);
+            $result = &_emit($cb, ' ', $columnref);
           }
         }
 
-        &_emit($cb, $word, $columnref);
+        $result = &_emit($cb, $word, $columnref);
 
         $$wsokref = 1;
       }
     } elsif ($leading_ws || $trailing_ws) {
-      &_emit($cb, ' ', $columnref);
+      $result = &_emit($cb, ' ', $columnref);
     }
 
     $$wsokref = $trailing_ws;
   }
+
+  return $result;
 }
 
 sub _node {
   my($cb, $node, $depth, $columnref, $wsokref, $pre, $noquote) = @_;
+
+  my $result;
 
   my @node = @$node;
   my $tag = $node[0];
 
   my $empty;
 
-  if ($tag eq $hl_noquote) {
+  if (&is_noquote($tag)) {
     $noquote = 1;
     undef $tag;
-  } elsif ($tag eq $hl_requote) {
+  } elsif (&is_requote($tag)) {
     $noquote = 0;
     undef $tag;
-  } elsif ($tag eq $hl_preserve) {
+  } elsif (&is_preserve($tag)) {
     $pre = 1;
     undef $tag;
   } else {
@@ -113,31 +151,34 @@ sub _node {
   }
 
   if ($$wsokref && !$pre) {
-    &_emit($cb, ("\n" . (' ' x $depth)), $columnref);
+    $result = &_emit($cb, ("\n" . (' ' x $depth)), $columnref);
   }
 
   if (defined($tag)) {
-    &_emit($cb, "<$tag", $columnref);
+    $result = &_emit($cb, "<$tag", $columnref);
     foreach my $content (@node[1 .. $#node]) {
       next unless ref($content) eq 'HASH';
       foreach my $hashitem (keys %$content) {
         my $val = $content->{$hashitem};
 
-        if ($val eq $hl_bool_yes) {
-          &_emit($cb, " $hashitem", $columnref);
-        } elsif ($val eq $hl_bool_no) {
+        if (&is_bool_yes($val)) {
+          $result = &_emit($cb, " $hashitem", $columnref);
+        } elsif (&is_bool_no($val)) {
           # do nothing
         } elsif (ref($val) eq 'ARRAY') {
           # the caller wants the value interpolated literally
-          &_emit($cb, sprintf(' %s=%s', $hashitem, $val->[0]), $columnref);
+          $result = &_emit($cb,
+                           sprintf(' %s=%s', $hashitem, $val->[0]),
+                           $columnref);
         } else {
-          &_emit($cb,
-                 sprintf(' %s="%s"', $hashitem, &encode_entities($val)),
-                 $columnref);
+          $result = &_emit($cb,
+                           sprintf(' %s="%s"', $hashitem,
+                                   &encode_entities($val)),
+                           $columnref);
         }
       }
     }
-    &_emit($cb, ">", $columnref);
+    $result = &_emit($cb, ">", $columnref);
     $$wsokref = $hl_wsok{$tag};
   }
 
@@ -146,9 +187,11 @@ sub _node {
     next if ($ref eq 'HASH');
 
     if ($ref eq 'ARRAY') {
-      &_node($cb, $content, $depth + 1, $columnref, $wsokref, $pre, $noquote);
+      $result = &_node($cb, $content, $depth + 1, $columnref, $wsokref,
+                       $pre, $noquote);
     } else {
-      &_str($cb, $content, $depth + 1, $columnref, $wsokref, $pre, $noquote);
+      $result = &_str($cb, $content, $depth + 1, $columnref, $wsokref,
+                      $pre, $noquote);
     }
 
     $$wsokref ||= $hl_wsok{$tag} if defined($tag);
@@ -156,11 +199,13 @@ sub _node {
 
   if (defined($tag) && !$empty) {
     if ($$wsokref) {
-      &_emit($cb, ("\n" . (' ' x $depth)), $columnref);
+      $result = &_emit($cb, ("\n" . (' ' x $depth)), $columnref);
     }
-    &_emit($cb, "</$tag>", $columnref);
+    $result = &_emit($cb, "</$tag>", $columnref);
     $$wsokref = 0;
   }
+
+  return $result;
 }
 
 sub hl {
@@ -169,13 +214,17 @@ sub hl {
   my $column = 0;
   my $wsok = 0;
 
+  my $result;
+
   foreach my $elt (@_[1 .. $#_]) {
     if (ref($elt)) {
-      &_node($cb, $elt, 0, \$column, \$wsok, 0, 0);
+      $result = &_node($cb, $elt, 0, \$column, \$wsok, 0, 0);
     } else {
-      &_str($cb, $elt, 0, \$column, \$wsok, 0, 0);
+      $result = &_str($cb, $elt, 0, \$column, \$wsok, 0, 0);
     }
   }
+
+  return $result;
 }
 
 sub hl_noquote  { [$hl_noquote  => @_]; }
@@ -266,6 +315,13 @@ Includes the HTML character-entity named NAME.
 
 =back
 
+The return value of C<hl()> is the result of the last call to the callback
+function.  This means it's possible to write
+
+  &hl(sub { $accumulator .= shift }, ...)
+
+to have C<hl()> return a string containing the completely rendered HTML.
+
 =head1 EXAMPLE
 
   &hl(sub { print shift },
@@ -296,7 +352,7 @@ HTML::Tree package by Gisle Aas and Sean M. Burke.
 
 =head1 COPYRIGHT
 
-Copyright 2000 Bob Glickstein.
+Copyright 2000-2002 Bob Glickstein.
 
 This library is free software; you can redistribute it and/or modify it under
 the same terms as Perl itself.
