@@ -1,0 +1,8 @@
+* 1.0.1         13 Dec 2000
+
+  "textarea" added to %hl_pre (elements whose contents mustn't have
+  their whitespace munged).
+
+* 1.0           13 Dec 2000
+
+  Initial public release.

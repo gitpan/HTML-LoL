@@ -4,7 +4,7 @@ use strict;
 use base 'Exporter';
 use vars qw(@ISA @EXPORT $VERSION);
 
-$VERSION = '1.0';
+$VERSION = '1.0.1';
 @EXPORT = qw(hl hl_noquote hl_requote hl_entity hl_bool);
 
 use constant TABWIDTH => 8;
@@ -26,7 +26,7 @@ map { $hl_wsok{$_} = 1 } qw(area col colgroup frame frameset
 
 # elements whose layout should not be altered
 my %hl_pre;
-map { $hl_pre{$_} = 1 } qw(pre style script);
+map { $hl_pre{$_} = 1 } qw(pre style script textarea);
 
 sub _emit {
   my($cb, $str, $columnref) = @_;
