@@ -56,6 +56,11 @@ DESCRIPTION
         Reenables entity-encoding of its arguments (use it inside a
         call to `hl_noquote()').
 
+    `hl_preserve(...)'
+        Normally, HTML::LoL tries to optimize the whitespace in the
+        HTML it emits (without changing the meaning of the HTML).
+        This suppresses that behavior within its arguments.
+
     `hl_entity(NAME)'
         Includes the HTML character-entity named NAME.
 

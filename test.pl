@@ -10,7 +10,8 @@ my @tests = (['<b>foo</b>', [b => 'foo']],
              ['<a href="&amp;">x</a>', [a => {href => '&'}, 'x']],
              ['<a href="&">x</a>', [a => {href => ['"&"']}, 'x']],
              ['<a>x</a>', [a => {attr => hl_bool(0)}, 'x']],
-             ['<a attr>x</a>', [a => {attr => hl_bool(1)}, 'x']]);
+             ['<a attr>x</a>', [a => {attr => hl_bool(1)}, 'x']],
+             ['<b>  foo  </b>', &hl_preserve([b => '  foo  '])]);
 
 my $num = @tests;
 

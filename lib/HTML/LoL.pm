@@ -4,8 +4,8 @@ use strict;
 use base 'Exporter';
 use vars qw(@ISA @EXPORT $VERSION);
 
-$VERSION = '1.0.1';
-@EXPORT = qw(hl hl_noquote hl_requote hl_entity hl_bool);
+$VERSION = '1.1';
+@EXPORT = qw(hl hl_noquote hl_requote hl_entity hl_bool hl_preserve);
 
 use constant TABWIDTH => 8;
 
@@ -15,6 +15,7 @@ my $hl_bool_yes = &gensym();
 my $hl_bool_no  = &gensym();
 my $hl_noquote  = &gensym();
 my $hl_requote  = &gensym();
+my $hl_preserve = &gensym();
 
 use HTML::Entities;
 use HTML::Tagset;
@@ -92,7 +93,7 @@ sub _node {
   my($cb, $node, $depth, $columnref, $wsokref, $pre, $noquote) = @_;
 
   my @node = @$node;
-  my $tag = shift @node;
+  my $tag = $node[0];
 
   my $empty;
 
@@ -101,6 +102,9 @@ sub _node {
     undef $tag;
   } elsif ($tag eq $hl_requote) {
     $noquote = 0;
+    undef $tag;
+  } elsif ($tag eq $hl_preserve) {
+    $pre = 1;
     undef $tag;
   } else {
     $tag = lc($tag);
@@ -114,7 +118,7 @@ sub _node {
 
   if (defined($tag)) {
     &_emit($cb, "<$tag", $columnref);
-    foreach my $content (@node) {
+    foreach my $content (@node[1 .. $#node]) {
       next unless ref($content) eq 'HASH';
       foreach my $hashitem (keys %$content) {
         my $val = $content->{$hashitem};
@@ -137,7 +141,7 @@ sub _node {
     $$wsokref = $hl_wsok{$tag};
   }
 
-  foreach my $content (@node) {
+  foreach my $content (@node[1 .. $#node]) {
     my $ref = ref($content);
     next if ($ref eq 'HASH');
 
@@ -160,12 +164,12 @@ sub _node {
 }
 
 sub hl {
-  my $cb = shift;
+  my $cb = $_[0];
 
   my $column = 0;
   my $wsok = 0;
 
-  foreach my $elt (@_) {
+  foreach my $elt (@_[1 .. $#_]) {
     if (ref($elt)) {
       &_node($cb, $elt, 0, \$column, \$wsok, 0, 0);
     } else {
@@ -174,11 +178,12 @@ sub hl {
   }
 }
 
-sub hl_noquote { [$hl_noquote => @_]; }
-sub hl_requote { [$hl_requote => @_]; }
-sub hl_entity  { [$hl_noquote => map { "&$_;" } @_]; }
+sub hl_noquote  { [$hl_noquote  => @_]; }
+sub hl_requote  { [$hl_requote  => @_]; }
+sub hl_preserve { [$hl_preserve => @_]; }
+sub hl_entity   { [$hl_noquote  => map { "&$_;" } @_]; }
 
-sub hl_bool { shift() ? $hl_bool_yes : $hl_bool_no }
+sub hl_bool { $_[0] ? $hl_bool_yes : $hl_bool_no }
 
 1;
 
@@ -248,6 +253,12 @@ Suppresses entity-encoding of its arguments.
 
 Reenables entity-encoding of its arguments (use it inside a call to
 C<hl_noquote()>).
+
+=item C<hl_preserve(...)>
+
+Normally, HTML::LoL tries to optimize the whitespace in the HTML it emits
+(without changing the meaning of the HTML).  This suppresses that behavior
+within its arguments.
 
 =item C<hl_entity(NAME)>
 
